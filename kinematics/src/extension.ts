@@ -69,8 +69,6 @@ function activate(context: vscode.ExtensionContext) {
     }
 
     function getWebviewContent(context: vscode.ExtensionContext, panel: vscode.WebviewPanel) {
-      const threejs =  vscode.Uri.file(context.extensionPath+"/js/three.js");
-      const threejsUri = panel.webview.asWebviewUri(threejs);
       const ros3d =  vscode.Uri.file(context.extensionPath+"/js/ros3d.js");
       const ros3dUri = panel.webview.asWebviewUri(ros3d);
       const roslib =  vscode.Uri.file(context.extensionPath+"/node_modules/roslib/build/roslib.js");
@@ -87,7 +85,6 @@ function activate(context: vscode.ExtensionContext) {
           <style>
             body { margin: 0; }
           </style>
-          <script src=${threejsUri}></script>
           <script src=${roslibUri}></script>
           <script src=${ros3dUri}></script>
           <script src=${urdfUri}></script>
