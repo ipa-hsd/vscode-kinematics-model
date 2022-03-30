@@ -4,31 +4,49 @@ import { ParseTreeListener } from "antlr4ts/tree/ParseTreeListener";
 // import { RuleNode } from "antlr4ts/tree/RuleNode";
 
 import { DebugInternalKinematicsLexer } from './parser/DebugInternalKinematicsLexer';
-import { DebugInternalKinematicsParser, RuleJointContext, RuleLinkContext, RuleMeshContext, RuleVisualContext} from './parser/DebugInternalKinematicsParser';
+import { DebugInternalKinematicsParser, RuleJointContext, RuleLinkContext, RuleMacroCallContext, RuleMeshContext, RuleVisualContext} from './parser/DebugInternalKinematicsParser';
 import { DebugInternalKinematicsListener } from './parser/DebugInternalKinematicsListener';
 
 import { UrdfModel, UrdfJoint, UrdfLink, UrdfVisual, UrdfMesh } from './urdf/urdf'
 import { Vector3, Quaternion, Pose } from 'roslib';
-// import { RuleNode } from 'antlr4ts/tree/RuleNode';
+
 import * as THREE from 'three';
+import * as vscode from 'vscode';
+import { LanguageClient } from 'vscode-languageclient/node';
+import * as vscode_languageserver_protocol_1 from 'vscode-languageserver-protocol';
 
 
 function extendRadians(rad: string) {
     if(!rad.includes('radians')) {
         return rad;
     }
-
     return rad.replace(/^\${radians\(/g, '').replace(/\)\}/g, '');
 }
 
 // how to use these meshfiles? Make a list? Can I at least visualize the first one?
 // also need to get the origin; there are 2 origins - visual / collision and joint - which one to use?
 class TreeShapeListener implements DebugInternalKinematicsListener {
-    model: UrdfModel;
+    private model: UrdfModel;
+    private client: LanguageClient;
+    private document: vscode.TextDocument;
     private linkMap = new Map<String, UrdfLink>();
 
-    constructor(model: UrdfModel) {
+    constructor(model: UrdfModel, client: LanguageClient, document: vscode.TextDocument) {
         this.model = model;
+        this.client = client;
+        this.document = document;
+    }
+
+    public enterRuleMacroCall(ctx: RuleMacroCallContext): void {
+        var resp = this.client.sendRequest(vscode_languageserver_protocol_1.DefinitionRequest.type,
+            this.client.code2ProtocolConverter.asTextDocumentPositionParams(this.document, new vscode.Position(2, 45)))
+                .then(this.client.protocol2CodeConverter.asDefinitionResult, (error) => {
+                    return this.client.handleFailedRequest(vscode_languageserver_protocol_1.DefinitionRequest.type, error, null);
+            });
+        console.log(resp);
+        for(let i = 0; i < ctx.childCount; i++) {
+            console.log(i + " " + ctx.getChild(i).text);
+        }
     }
 
     public enterRuleJoint(ctx: RuleJointContext): void {
@@ -74,6 +92,7 @@ class TreeShapeListener implements DebugInternalKinematicsListener {
             orientation : orientation
         });
         joint.origin = origin;
+        // console.log(joint);
         this.model.add_joint(joint);
     }
 
@@ -145,11 +164,11 @@ class TreeShapeListener implements DebugInternalKinematicsListener {
 }
 
 
-export async function getModel(modelStr: string) {
+export async function getModel(document: vscode.TextDocument, client: LanguageClient) {
     console.log("Initializing model")
 
     // Create the lexer and parser
-    let inputStream = antlr4ts.CharStreams.fromString(modelStr);
+    let inputStream = antlr4ts.CharStreams.fromString(document.getText());
     let lexer = new DebugInternalKinematicsLexer(inputStream);
     let tokenStream = new antlr4ts.CommonTokenStream(lexer);
     let parser = new DebugInternalKinematicsParser(tokenStream);
@@ -158,7 +177,7 @@ export async function getModel(modelStr: string) {
     let tree = parser.ruleRobot();
 
     var model = new UrdfModel();
-    ParseTreeWalker.DEFAULT.walk(new TreeShapeListener(model) as ParseTreeListener, tree);
+    ParseTreeWalker.DEFAULT.walk(new TreeShapeListener(model, client, document) as ParseTreeListener, tree);
     return model;
 
 }

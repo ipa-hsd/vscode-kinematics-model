@@ -17,8 +17,9 @@ const DebugInternalKinematicsLexer_1 = require("./parser/DebugInternalKinematics
 const DebugInternalKinematicsParser_1 = require("./parser/DebugInternalKinematicsParser");
 const urdf_1 = require("./urdf/urdf");
 const roslib_1 = require("roslib");
-// import { RuleNode } from 'antlr4ts/tree/RuleNode';
 const THREE = require("three");
+const vscode = require("vscode");
+const vscode_languageserver_protocol_1 = require("vscode-languageserver-protocol");
 function extendRadians(rad) {
     if (!rad.includes('radians')) {
         return rad;
@@ -28,9 +29,21 @@ function extendRadians(rad) {
 // how to use these meshfiles? Make a list? Can I at least visualize the first one?
 // also need to get the origin; there are 2 origins - visual / collision and joint - which one to use?
 class TreeShapeListener {
-    constructor(model) {
+    constructor(model, client, document) {
         this.linkMap = new Map();
         this.model = model;
+        this.client = client;
+        this.document = document;
+    }
+    enterRuleMacroCall(ctx) {
+        var resp = this.client.sendRequest(vscode_languageserver_protocol_1.DefinitionRequest.type, this.client.code2ProtocolConverter.asTextDocumentPositionParams(this.document, new vscode.Position(2, 45)))
+            .then(this.client.protocol2CodeConverter.asDefinitionResult, (error) => {
+            return this.client.handleFailedRequest(vscode_languageserver_protocol_1.DefinitionRequest.type, error, null);
+        });
+        console.log(resp);
+        for (let i = 0; i < ctx.childCount; i++) {
+            console.log(i + " " + ctx.getChild(i).text);
+        }
     }
     enterRuleJoint(ctx) {
         let parent_link = ctx.getChild(7).text.replace(/"/g, '');
@@ -69,6 +82,7 @@ class TreeShapeListener {
             orientation: orientation
         });
         joint.origin = origin;
+        // console.log(joint);
         this.model.add_joint(joint);
     }
     // links may not have geometries. So it is necessary
@@ -128,18 +142,18 @@ class TreeShapeListener {
         }
     }
 }
-function getModel(modelStr) {
+function getModel(document, client) {
     return __awaiter(this, void 0, void 0, function* () {
         console.log("Initializing model");
         // Create the lexer and parser
-        let inputStream = antlr4ts.CharStreams.fromString(modelStr);
+        let inputStream = antlr4ts.CharStreams.fromString(document.getText());
         let lexer = new DebugInternalKinematicsLexer_1.DebugInternalKinematicsLexer(inputStream);
         let tokenStream = new antlr4ts.CommonTokenStream(lexer);
         let parser = new DebugInternalKinematicsParser_1.DebugInternalKinematicsParser(tokenStream);
         parser.buildParseTree = true;
         let tree = parser.ruleRobot();
         var model = new urdf_1.UrdfModel();
-        ParseTreeWalker_1.ParseTreeWalker.DEFAULT.walk(new TreeShapeListener(model), tree);
+        ParseTreeWalker_1.ParseTreeWalker.DEFAULT.walk(new TreeShapeListener(model, client, document), tree);
         return model;
     });
 }

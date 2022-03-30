@@ -9,6 +9,8 @@ import { getModel } from './viewer';
 
 
 function activate(context: vscode.ExtensionContext) {
+    var client: LanguageClient;
+
     var serverInfo = function () {
         // Connect to the language server via a io channel
         var jar = context.asAbsolutePath(path.join('resources', 'de.fraunhofer.ipa.kinematics.xtext.ide-1.0.0-SNAPSHOT-ls.jar'));
@@ -26,7 +28,8 @@ function activate(context: vscode.ExtensionContext) {
         documentSelector: ['kinematics']
     };
     // Create the language client and start the client.
-    var disposable = new LanguageClient('MYDSL1', serverInfo, clientOptions).start();
+    client = new LanguageClient('MYDSL1', serverInfo, clientOptions);
+    var disposable = client.start();
     // Push the disposable to the context's subscriptions so that the
     // client can be deactivated on extension deactivation
     context.subscriptions.push(disposable);
@@ -64,11 +67,13 @@ function activate(context: vscode.ExtensionContext) {
     }
 
     async function loadModel(document: vscode.TextDocument) {
-      var model = await getModel(document.getText());
+      var model = await getModel(document, client);
       return JSON.stringify(model);
     }
 
     function getWebviewContent(context: vscode.ExtensionContext, panel: vscode.WebviewPanel) {
+      const threejs =  vscode.Uri.file(context.extensionPath+"/js/three.js");
+      const threejsUri = panel.webview.asWebviewUri(threejs);
       const ros3d =  vscode.Uri.file(context.extensionPath+"/js/ros3d.js");
       const ros3dUri = panel.webview.asWebviewUri(ros3d);
       const roslib =  vscode.Uri.file(context.extensionPath+"/node_modules/roslib/build/roslib.js");
@@ -85,6 +90,7 @@ function activate(context: vscode.ExtensionContext) {
           <style>
             body { margin: 0; }
           </style>
+          <script src=${threejsUri}></script>
           <script src=${roslibUri}></script>
           <script src=${ros3dUri}></script>
           <script src=${urdfUri}></script>
