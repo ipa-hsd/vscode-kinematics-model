@@ -123,6 +123,14 @@ class TreeShapeListener implements DebugInternalKinematicsListener {
             joint.parent = parent_link;
         }
 
+        let macroRule = ctx.parent?.parent;
+        if(macroRule instanceof RuleMacroContext) {
+            let macro = this.macros.get(macroRule.getChild(3).text);
+            macro?.add_joint(joint);
+        } else {
+            // assuming this is <robot>
+            this.model.add_joint(joint);
+        }
     }
 
     // links may not have geometries. So it is necessary
@@ -132,7 +140,14 @@ class TreeShapeListener implements DebugInternalKinematicsListener {
         let link = new UrdfLink(name!);
 
         this.linkMap.set(link.name, link);
-        this.model.add_link(link);
+        let macroRule = ctx.parent?.parent;
+        if(macroRule instanceof RuleMacroContext) {
+            let macro = this.macros.get(macroRule.getChild(3).text);
+            macro?.add_link(link);
+        } else {
+            // assuming this is <robot>
+            this.model.add_link(link);
+        }
     }
 
     // ideally all geometries (links) should be parsed before the joints
