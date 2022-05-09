@@ -4,7 +4,7 @@ import { ParseTreeListener } from "antlr4ts/tree/ParseTreeListener";
 // import { RuleNode } from "antlr4ts/tree/RuleNode";
 
 import { DebugInternalKinematicsLexer } from './parser/DebugInternalKinematicsLexer';
-import { DebugInternalKinematicsParser, RuleJointContext, RuleLinkContext, RuleMacroCallContext, RuleMeshContext, RuleVisualContext} from './parser/DebugInternalKinematicsParser';
+import { DebugInternalKinematicsParser, RuleJointContext, RuleLinkContext, RuleMacroCallContext, RuleMeshContext, RuleVisualContext, RuleMacroContext} from './parser/DebugInternalKinematicsParser';
 import { DebugInternalKinematicsListener } from './parser/DebugInternalKinematicsListener';
 
 import { UrdfModel, UrdfJoint, UrdfLink, UrdfVisual, UrdfMesh } from './urdf/urdf'
@@ -23,6 +23,7 @@ function extendRadians(rad: string) {
     return rad.replace(/^\${radians\(/g, '').replace(/\)\}/g, '');
 }
 
+
 // how to use these meshfiles? Make a list? Can I at least visualize the first one?
 // also need to get the origin; there are 2 origins - visual / collision and joint - which one to use?
 class TreeShapeListener implements DebugInternalKinematicsListener {
@@ -30,26 +31,38 @@ class TreeShapeListener implements DebugInternalKinematicsListener {
     private client: LanguageClient;
     private document: vscode.TextDocument;
     private linkMap = new Map<String, UrdfLink>();
+    private macros: Map<String, UrdfModel>;
+    private macroCallMap = new Map<String, Array<vscode.Position | Map<String, String>>>();
 
-    constructor(model: UrdfModel, client: LanguageClient, document: vscode.TextDocument) {
+    constructor(model: UrdfModel, macros: Map<String, UrdfModel>, document: vscode.TextDocument, client: LanguageClient) {
         this.model = model;
         this.client = client;
         this.document = document;
+        this.macros = macros;
     }
 
-    public enterRuleMacroCall(ctx: RuleMacroCallContext): void {
-        var resp = this.client.sendRequest(vscode_languageserver_protocol_1.DefinitionRequest.type,
-            this.client.code2ProtocolConverter.asTextDocumentPositionParams(this.document, new vscode.Position(2, 45)))
-                .then(this.client.protocol2CodeConverter.asDefinitionResult, (error) => {
-                    return this.client.handleFailedRequest(vscode_languageserver_protocol_1.DefinitionRequest.type, error, null);
-            });
-        console.log(resp);
-        for(let i = 0; i < ctx.childCount; i++) {
-            console.log(i + " " + ctx.getChild(i).text);
+    public enterRuleMacroCall(ctx: RuleMacroCallContext) {
+        // get macro names
+        var sym = ctx.getChild(3).text.replace(/"/g, '');
+        var offset = this.document.getText().search(sym);
+        const position = this.document.positionAt(offset);
+        let name = sym.split('.').at(-1);
+
+        // extract parameters
+        let ruleParameter = ctx.ruleParameterCall();
+        let paramMap = new Map<String, String>();
+        for (let index = 0; index < ruleParameter.length; index++) {
+            let name = ruleParameter.at(index)?.getChild(3).text.replace(/"/g, '');
+            let param = ruleParameter.at(index)?.getChild(5).text;
+            paramMap.set(name!, param!);
         }
+
+        this.macroCallMap.set(name!, [position, paramMap]);
     }
 
-
+    public enterRuleMacro(ctx: RuleMacroContext) {
+        this.macros.set(ctx.getChild(3).text, new UrdfModel());
+    }
 
     public enterRuleJoint(ctx: RuleJointContext) {
         let joint = new UrdfJoint();
@@ -177,6 +190,45 @@ class TreeShapeListener implements DebugInternalKinematicsListener {
             }
         }
     }
+
+    public async getAllMacroDefinitions() {
+        for (const [name, macro] of this.macroCallMap) {
+            await this.getMacroDefinition(name, macro.at(0) as vscode.Position);
+        }
+        return new Promise((resolve)=> {
+            resolve(0);
+        })
+    }
+
+    private async getMacroDefinition(name: String, position: vscode.Position) {
+        var resp = await this.client.sendRequest(vscode_languageserver_protocol_1.DefinitionRequest.type,
+        this.client.code2ProtocolConverter.asTextDocumentPositionParams(this.document, position))
+            .then(this.client.protocol2CodeConverter.asDefinitionResult, (error) => {
+                return this.client.handleFailedRequest(vscode_languageserver_protocol_1.DefinitionRequest.type, error, null);
+        });
+        let location = JSON.parse(JSON.stringify(resp));
+
+        var setting = vscode.Uri.parse(location[0].uri.path);
+        let refDocument = await vscode.workspace.openTextDocument(setting)
+
+        let [model, macros] = await getModel(refDocument, this.client);
+
+        console.log(model);
+        // TODO: loop through joints and links in model
+        // check if any element is parameterized
+        // replace the parameters with appropriate elem from macros
+
+        // add macros[macroCall name] to this.macros
+        // retain only the macro which has been called
+        if(!this.macros.has(name!)) {
+            let r = macros as Map<String, UrdfModel>;
+            this.macros.set(name!, r.get(name)!);
+        }
+
+        return new Promise((resolve)=> {
+            resolve(0);
+        });
+    }
 }
 
 
@@ -192,8 +244,16 @@ export async function getModel(document: vscode.TextDocument, client: LanguageCl
     parser.buildParseTree = true;
     let tree = parser.ruleRobot();
 
+    // model should contain the body within <robot>;
+    // also connect links from macro calls
+    // for the top-level document, model contains the complete tree
     var model = new UrdfModel();
-    ParseTreeWalker.DEFAULT.walk(new TreeShapeListener(model, client, document) as ParseTreeListener, tree);
-    return model;
+    // robots (need a better term) contains the macro definitions within the document
+    var macros: Map<String, UrdfModel> = new Map<String, UrdfModel>();
 
+    let listener = new TreeShapeListener(model, macros, document, client);
+    ParseTreeWalker.DEFAULT.walk(listener as ParseTreeListener, tree);
+
+    await listener.getAllMacroDefinitions();
+    return [model, macros];
 }
