@@ -69,8 +69,8 @@ function activate(context) {
     }
     function loadModel(document) {
         return __awaiter(this, void 0, void 0, function* () {
-            var model = yield (0, viewer_1.getModel)(document, client);
-            return JSON.stringify(model);
+            var [model, robots] = yield (0, viewer_1.getModel)(document, client);
+            return JSON.stringify([model, robots]);
         });
     }
     function getWebviewContent(context, panel) {
@@ -102,7 +102,7 @@ function activate(context) {
             var viewer = undefined;
 
             window.addEventListener('message', (event) => {
-              let model = JSON.parse(event.data);
+              let [model, robots] = JSON.parse(event.data);
 
               let parent = undefined;
               if (model.joints[0].parent.visual !== undefined) {

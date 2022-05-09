@@ -4,6 +4,7 @@ exports.UrdfMesh = exports.UrdfVisual = exports.UrdfLink = exports.UrdfJoint = e
 class UrdfModel {
     constructor() {
         // materials = ;
+        this.name = '';
         this.links = [];
         this.joints = [];
     }
