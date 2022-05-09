@@ -67,8 +67,8 @@ function activate(context: vscode.ExtensionContext) {
     }
 
     async function loadModel(document: vscode.TextDocument) {
-      var model = await getModel(document, client);
-      return JSON.stringify(model);
+      var [model,robots] = await getModel(document, client);
+      return JSON.stringify([model,robots]);
     }
 
     function getWebviewContent(context: vscode.ExtensionContext, panel: vscode.WebviewPanel) {
@@ -101,7 +101,7 @@ function activate(context: vscode.ExtensionContext) {
             var viewer = undefined;
 
             window.addEventListener('message', (event) => {
-              let model = JSON.parse(event.data);
+              let [model, robots] = JSON.parse(event.data);
 
               let parent = undefined;
               if (model.joints[0].parent.visual !== undefined) {
