@@ -2,6 +2,7 @@ import { Pose } from "roslib";
 
 export class UrdfModel {
     // materials = ;
+    public name: String = '';
     public links: Array<UrdfLink> = [];
     public joints: Array<UrdfJoint> = [];
 
