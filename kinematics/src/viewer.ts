@@ -135,7 +135,7 @@ class TreeShapeListener implements DebugInternalKinematicsListener {
 
     // links may not have geometries. So it is necessary
     // to parse them independently
-    public enterRuleLink(ctx: RuleLinkContext): void {
+    public enterRuleLink(ctx: RuleLinkContext) {
         let name = ctx.getChild(3).text.replace(/"/g, '');
         let link = new UrdfLink(name!);
 
@@ -152,7 +152,7 @@ class TreeShapeListener implements DebugInternalKinematicsListener {
 
     // ideally all geometries (links) should be parsed before the joints
     // since links are referenced in the joints
-    public enterRuleVisual(ctx: RuleVisualContext): void {
+    public enterRuleVisual(ctx: RuleVisualContext) {
         let visual = new UrdfVisual();
 
         let pose = undefined;
