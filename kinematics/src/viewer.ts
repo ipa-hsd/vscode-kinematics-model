@@ -49,51 +49,67 @@ class TreeShapeListener implements DebugInternalKinematicsListener {
         }
     }
 
-    public enterRuleJoint(ctx: RuleJointContext): void {
-        let parent_link = ctx.getChild(7).text.replace(/"/g, '');
-        let child_link = ctx.getChild(9).text.replace(/"/g, '');
-        // for(let i = 0; i < ctx.childCount; i++) {
-        //     // console.log(i);
-        //     console.log(i + " " + ctx.getChild(i).text);
-        // }
 
-        let rpy = ctx.getChild(11).getChild(0).getChild(3).text.replace(/"/g, '').split(' ');
-        let xyz = ctx.getChild(11).getChild(0).getChild(5).text.replace(/"/g, '').split(' ');
-        // console.log("rpy: " + rpy);
-        // console.log("xyz: " + xyz[0] + " " + ctx.getChild(11).getChild(0).getChild(5).text);
 
+    public enterRuleJoint(ctx: RuleJointContext) {
         let joint = new UrdfJoint();
+
+        let originRule = ctx.ruleParameterPose();
+        if(originRule?.rulePose() !== undefined) {
+            let rpy = ctx.getChild(11).getChild(0).getChild(3).text.replace(/"/g, '').split(' ');
+            let xyz = ctx.getChild(11).getChild(0).getChild(5).text.replace(/"/g, '').split(' ');
+
+            var position = new Vector3({
+                x : parseFloat(xyz[0]),
+                y : parseFloat(xyz[1]),
+                z : parseFloat(xyz[2])
+            });
+
+            // convert '$radian{deg}' to radians in float
+            let r = parseFloat(extendRadians(rpy[0])) * (Math.PI/180);
+            let p = parseFloat(extendRadians(rpy[1])) * (Math.PI/180);
+            let y = parseFloat(extendRadians(rpy[2])) * (Math.PI/180);
+
+            var rot = new THREE.Quaternion().setFromEuler(new THREE.Euler(r, p, y, 'XYZ'));
+
+            var orientation = new Quaternion({
+                x : rot.x,
+                y : rot.y,
+                z : rot.z,
+                w : rot.w
+            });
+
+            var origin = new Pose({
+                position : position,
+                orientation : orientation
+            });
+            joint.origin = origin;
+        } else {
+            // it is a parameter
+            joint.origin = originRule?.getChild(0).text.replace(/"/g, '')!;
+        }
+
         joint.name = ctx.getChild(3).text.replace(/"/g, '');
         joint.type = ctx.getChild(5).text;
-        joint.parent = this.linkMap.get(parent_link);
-        joint.child = this.linkMap.get(child_link);
 
-        var position = new Vector3({
-            x : parseFloat(xyz[0]),
-            y : parseFloat(xyz[1]),
-            z : parseFloat(xyz[2])
-        });
+        let child_link = ctx.getChild(9).text.replace(/"/g, '');
+        let child = this.linkMap.get(child_link);
+        if(child !== undefined) {
+            joint.child = child;
+        } else {
+            // it is a parameter
+            joint.child = child_link;
+        }
 
-        // convert '$radian{deg}' to radians in float
-        let r = parseFloat(extendRadians(rpy[0])) * (Math.PI/180);
-        let p = parseFloat(extendRadians(rpy[1])) * (Math.PI/180);
-        let y = parseFloat(extendRadians(rpy[2])) * (Math.PI/180);
+        let parent_link = ctx.getChild(7).text.replace(/"/g, '');
+        let parent = this.linkMap.get(parent_link);
+        if(parent !== undefined) {
+            joint.parent = parent;
+        } else {
+            // it is a parameter
+            joint.parent = parent_link;
+        }
 
-        var rot = new THREE.Quaternion().setFromEuler(new THREE.Euler(r, p, y, 'XYZ'));
-
-        var orientation = new Quaternion({
-            x : rot.x,
-            y : rot.y,
-            z : rot.z,
-            w : rot.w
-        });
-        var origin = new Pose({
-            position : position,
-            orientation : orientation
-        });
-        joint.origin = origin;
-        // console.log(joint);
-        this.model.add_joint(joint);
     }
 
     // links may not have geometries. So it is necessary
