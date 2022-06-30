@@ -15,6 +15,7 @@ const node_1 = require("vscode-languageclient/node");
 const child_process_1 = require("child_process");
 const viewer_1 = require("./viewer");
 function activate(context) {
+    var client;
     var serverInfo = function () {
         // Connect to the language server via a io channel
         var jar = context.asAbsolutePath(path.join('resources', 'de.fraunhofer.ipa.kinematics.xtext.ide-1.0.0-SNAPSHOT-ls.jar'));
@@ -32,7 +33,8 @@ function activate(context) {
         documentSelector: ['kinematics']
     };
     // Create the language client and start the client.
-    var disposable = new node_1.LanguageClient('MYDSL1', serverInfo, clientOptions).start();
+    client = new node_1.LanguageClient('MYDSL1', serverInfo, clientOptions);
+    var disposable = client.start();
     // Push the disposable to the context's subscriptions so that the
     // client can be deactivated on extension deactivation
     context.subscriptions.push(disposable);
@@ -67,8 +69,8 @@ function activate(context) {
     }
     function loadModel(document) {
         return __awaiter(this, void 0, void 0, function* () {
-            var model = yield (0, viewer_1.getModel)(document.getText());
-            return JSON.stringify(model);
+            var [model, robots] = yield (0, viewer_1.getModel)(document, client);
+            return JSON.stringify([model, robots]);
         });
     }
     function getWebviewContent(context, panel) {
@@ -100,7 +102,7 @@ function activate(context) {
             var viewer = undefined;
 
             window.addEventListener('message', (event) => {
-              let model = JSON.parse(event.data);
+              let [model, robots] = JSON.parse(event.data);
 
               let parent = undefined;
               if (model.joints[0].parent.visual !== undefined) {

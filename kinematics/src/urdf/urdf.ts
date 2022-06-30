@@ -2,6 +2,7 @@ import { Pose } from "roslib";
 
 export class UrdfModel {
     // materials = ;
+    public name: String = '';
     public links: Array<UrdfLink> = [];
     public joints: Array<UrdfJoint> = [];
 
@@ -17,9 +18,9 @@ export class UrdfModel {
 export class UrdfJoint {
     public name: String = '';
     public type: String = ''
-    public parent?: UrdfLink;
-    public child?: UrdfLink;
-    public origin!: Pose;
+    public parent?: String | UrdfLink;
+    public child?: String | UrdfLink;
+    public origin!: String | Pose;
 }
 
 export class UrdfLink {

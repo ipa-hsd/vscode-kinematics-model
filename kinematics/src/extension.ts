@@ -9,6 +9,8 @@ import { getModel } from './viewer';
 
 
 function activate(context: vscode.ExtensionContext) {
+    var client: LanguageClient;
+
     var serverInfo = function () {
         // Connect to the language server via a io channel
         var jar = context.asAbsolutePath(path.join('resources', 'de.fraunhofer.ipa.kinematics.xtext.ide-1.0.0-SNAPSHOT-ls.jar'));
@@ -26,7 +28,8 @@ function activate(context: vscode.ExtensionContext) {
         documentSelector: ['kinematics']
     };
     // Create the language client and start the client.
-    var disposable = new LanguageClient('MYDSL1', serverInfo, clientOptions).start();
+    client = new LanguageClient('MYDSL1', serverInfo, clientOptions);
+    var disposable = client.start();
     // Push the disposable to the context's subscriptions so that the
     // client can be deactivated on extension deactivation
     context.subscriptions.push(disposable);
@@ -64,8 +67,8 @@ function activate(context: vscode.ExtensionContext) {
     }
 
     async function loadModel(document: vscode.TextDocument) {
-      var model = await getModel(document.getText());
-      return JSON.stringify(model);
+      var [model,robots] = await getModel(document, client);
+      return JSON.stringify([model,robots]);
     }
 
     function getWebviewContent(context: vscode.ExtensionContext, panel: vscode.WebviewPanel) {
@@ -98,7 +101,7 @@ function activate(context: vscode.ExtensionContext) {
             var viewer = undefined;
 
             window.addEventListener('message', (event) => {
-              let model = JSON.parse(event.data);
+              let [model, robots] = JSON.parse(event.data);
 
               let parent = undefined;
               if (model.joints[0].parent.visual !== undefined) {
